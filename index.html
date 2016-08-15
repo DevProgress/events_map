@@ -72,8 +72,10 @@
       // Set up legend
       function initLegend() {
         var legend = document.getElementById('legend');
+        var event_count = 0;
         legend.innerHTML = '';
         for (var key in event_layers) {
+          event_count += key.length;
           legend.appendChild(document.createElement("br"));
           var icon = document.createElement('img');
           icon.className = 'legend-icon';
@@ -96,6 +98,9 @@
             }
           });
         }
+        legend.appendChild(document.createElement("br"));
+        legend.appendChild(document.createElement("br"));
+        legend.appendChild(document.createElement("strong")).appendChild(document.createTextNode('Total Events: ' + event_count));
       }
 
       function setHQShapes() {
