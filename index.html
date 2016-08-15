@@ -75,7 +75,7 @@
         var event_count = 0;
         legend.innerHTML = '';
         for (var key in event_layers) {
-          event_count += key.length;
+          event_count += event_layers[key].features.length;
           legend.appendChild(document.createElement("br"));
           var icon = document.createElement('img');
           icon.className = 'legend-icon';
