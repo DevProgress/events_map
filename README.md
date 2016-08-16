@@ -1,6 +1,10 @@
 # Hillary Map
 This project displays Hillary events on a Google Map, using the Google Maps JavaScript API and the Google Maps Geocoding API.
 
+## Demo
+
+[http://devprogress.us/events_map/](http://devprogress.us/events_map/)
+
 ## Configuration
 You can configure the settings using the `config` object in the index.html file. Below are the possible settings:
 
