@@ -22,6 +22,11 @@
       </div>
     </div>
     <script src="js/variables.js"></script>
+    <script src="js/markerclusterer.js"></script>
+    <script src="https://code.jquery.com/jquery-1.12.4.min.js"
+      integrity="sha256-ZosEbRLbNQzLpnKIkEdrPv7lOy9C27hHQ+Xp8a4MxAQ="
+      crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/handlebars.js/4.0.5/handlebars.min.js"></script>
     <script>
 
       // Sets configuration for the map:
@@ -58,14 +63,16 @@
       var hillary_polygon, logo_overlay;
       var data_layer = {};
       var event_layers;
+      var info_template;
+      var info_window;
 
       // This hash will split all events into separate categories based on title
       function initEventTypes() {
         event_types = {
-          'Voter Registration': {icon: 'http://maps.google.com/mapfiles/kml/paddle/red-circle.png', keywords: ['voter registration']},
-          'Party': {icon: 'http://maps.google.com/mapfiles/kml/paddle/grn-circle.png', keywords: ['party', 'fest']},
-          'Phone Bank': {icon: 'http://maps.google.com/mapfiles/kml/paddle/blu-circle.png', keywords: ['phone bank', 'phonebank']},
-          'Other': {icon: 'http://maps.google.com/mapfiles/kml/paddle/wht-circle.png'}
+          'Voter Registration': {icon: 'http://maps.google.com/mapfiles/ms/micons/red-dot.png', keywords: ['voter registration']},
+          'Party': {icon: 'http://maps.google.com/mapfiles/ms/micons/green-dot.png', keywords: ['party', 'fest']},
+          'Phone Bank': {icon: 'http://maps.google.com/mapfiles/ms/micons/blue-dot.png', keywords: ['phone bank', 'phonebank']},
+          'Other': {icon: 'http://maps.google.com/mapfiles/ms/micons/yellow-dot.png'}
         };
       }
 
@@ -86,8 +93,8 @@
           } else {
             icon.src = config['all_events_icon'];
           }
-          legend.appendChild(document.createTextNode(key + ' (' + event_layers[key].features.length + ')'));
           legend.appendChild(icon);
+          legend.appendChild(document.createTextNode(key + ' (' + event_layers[key].features.length + ')'));
           icon.addEventListener('click', function(event) {
             if (event.target.dataset.visible == 'true') {
               data_layer[event.target.dataset.key].setMap(null);
@@ -133,6 +140,9 @@
 
       // Take a given event from the HillaryClinton.com API and turn it into a GeoJSON marker with relevant properties
       function fillEventProperties(hillary_event) {
+        // TODO: real date formatting
+        // yyyy-mm-dd
+        var start = hillary_event.startDate.substring(0, 10).split('-');
         return {"type": "Feature",
           "geometry": {"type": "Point",
             "coordinates": [Number(hillary_event.locations[0].longitude),Number(hillary_event.locations[0].latitude)]
@@ -141,6 +151,7 @@
             "title": hillary_event.name,
             "description": hillary_event.description.trim().replace(/\r?\n/g, '<br/>'),
             "start_date": hillary_event.startDate,
+            "start_date_short": start[1]+'/'+start[2]+'/'+start[0],
             "end_date": hillary_event.endDate,
             "official_event": hillary_event.official,
             "lookup_id": hillary_event.lookupId
@@ -309,7 +320,7 @@
           styles: [{"featureType":"landscape","stylers":[{"hue":"#F1FF00"},{"saturation":-27.4},{"lightness":9.4},{"gamma":1}]},{"featureType":"road.highway","stylers":[{"hue":"#E51B2D"},{"saturation":-20},{"lightness":36.4},{"gamma":1}]},{"featureType":"road.arterial","stylers":[{"hue":"#00FF4F"},{"saturation":0},{"lightness":0},{"gamma":1}]},{"featureType":"road.local","stylers":[{"hue":"#FFB300"},{"saturation":-38},{"lightness":11.2},{"gamma":1}]},{"featureType":"water","stylers":[{"hue":"#254DA3"},{"saturation":4.2},{"lightness":-63.4},{"gamma":1}]},{"featureType":"poi","stylers":[{"hue":"#9FFF00"},{"saturation":0},{"lightness":0},{"gamma":1}]}]
         });
 
-        var infowindow = new google.maps.InfoWindow;
+        info_window = new google.maps.InfoWindow;
 
         var xhttp = new XMLHttpRequest();
 
@@ -318,24 +329,34 @@
           if (xhttp.readyState == 4 && xhttp.status == 200) {
 
             data_layer = {};
-
             event_layers = HillaryToHashOfGeoJSONs(JSON.parse(xhttp.responseText), config['categorize_by_event_type']);
+
+            var markers = [];
             for (var layer in event_layers) {
-              data_layer[layer] = new google.maps.Data();
-              data_layer[layer].addGeoJson(event_layers[layer]);
-              data_layer[layer].setStyle({
-                icon: {url: (config['categorize_by_event_type'] ? event_types[layer].icon : config['all_events_icon']), scaledSize: new google.maps.Size(32, 32)}
-              });
-              data_layer[layer].setMap(map);
-              data_layer[layer].addListener('click', function (event) {
-                infowindow.setContent("<strong>" + event.feature.getProperty("start_date").substring(0,10) + ": " + event.feature.getProperty("title") + "</strong><br>" + event.feature.getProperty("description") + "<br>"+(event.feature.getProperty("official_event") ? "<img src ='images/hfa_official.svg'> " : "")+"<a href='https://www.hillaryclinton.com/events/view/"+event.feature.getProperty("lookup_id")+"/' target='_blank'>RSVP</a>");
-                infowindow.setPosition(event.feature.getGeometry().get());
-                infowindow.open(map);
-              });
+              //  { label: features: [ { geometry: { coordinates: [lon, lat] } } ]}
+              var features = event_layers[layer].features;
+              var icon_url = config['categorize_by_event_type'] ? event_types[layer].icon : config['all_events_icon'];
+              for (i = 0; i < features.length; i++) {
+                var ev = features[i];
+                var coord = ev.geometry.coordinates;
+                var marker = new google.maps.Marker({
+                  position: new google.maps.LatLng(coord[1], coord[0]),
+                  icon: icon_url,
+                  id: layer+'.'+i
+                });
+                marker.addListener('click', clickMarker);
+                markers.push(marker);
+              }
             }
+            var marker_options = {
+                imagePath: 'images/m',
+                zoomOnClick: false
+            };
 
+            var marker_cluster = new MarkerClusterer(map, markers, marker_options);
+            marker_cluster.addListener('clusterclick', clickCluster);
+            info_template = Handlebars.compile($('#info-template').html());
             initLegend();
-
           }
         };
 
@@ -386,7 +407,44 @@
           loadMap();
         }
       }
+
+      function drawInfoWindow(html, coord) {
+        info_window.setContent(html);
+        // set from marker position
+        info_window.setPosition({lat: coord[1]+0.01, lng: coord[0]});
+        info_window.open(map);
+      }
+
+      function clickMarker() {
+        console.log('clickMarker', this);
+        // marker.id = label.index
+        var marker_id = this.id.split('.');
+        var feature = event_layers[marker_id[0]].features[marker_id[1]];
+        drawInfoWindow(info_template(feature.properties), feature.geometry.coordinates);
+      }
+
+      function clickCluster(cluster, ev) {
+        var html = '';
+        var markers = cluster.getMarkers();
+        for (var i = 0; i < markers.length; i++) {
+          var marker_id = markers[i].id.split('.');
+          var feature = event_layers[marker_id[0]].features[marker_id[1]];
+          html += info_template(feature.properties);
+        }
+        drawInfoWindow(html, [cluster.center_.lng(), cluster.center_.lat()]);
+      }
     </script>
     <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDhUbn5cm5zOYo7-4l4l6ODZ-BesKiEnTo&callback=initMap" async defer></script>
+
+    <!-- TODO: precompile templates -->
+    <script id="info-template" type="text/x-handlebars-template">
+    <div class="event-info">
+      <strong>{{start_date_short}}: {{title}}</strong><br>
+      {{#if official_event}}
+        <img src="images/hfa_official.svg" />
+      {{/if}}
+      <a href="https://www.hillaryclinton.com/events/view/{{lookup_id}}/" target="_blank">RSVP</a>
+    </div>
+    </script>
   </body>
 </html>

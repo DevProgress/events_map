@@ -60,3 +60,8 @@ input {
   height: 16px;
   width: 16px;
 }
+
+.event-info {
+  max-height: 200px;
+  overflow: scroll;
+}
