@@ -93,8 +93,8 @@
           } else {
             icon.src = config['all_events_icon'];
           }
-          legend.appendChild(document.createTextNode(key + ' (' + event_layers[key].features.length + ')'));
           legend.appendChild(icon);
+          legend.appendChild(document.createTextNode(key + ' (' + event_layers[key].features.length + ')'));
           icon.addEventListener('click', function(event) {
             if (event.target.dataset.visible == 'true') {
               data_layer[event.target.dataset.key].setMap(null);
@@ -446,6 +446,5 @@
       <a href="https://www.hillaryclinton.com/events/view/{{lookup_id}}/" target="_blank">RSVP</a>
     </div>
     </script>
-
   </body>
 </html>
